@@ -1,6 +1,11 @@
 name = "NamedVectorizations"
+uuid = "93c25245-795c-4f39-9b17-d28542eb77a0"
 authors = ["Nicola Mignoni"]
-version = "0.0.1"
+version = "0.1.0"
 
 [deps]
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[compat]
+Test = "1.11.0"

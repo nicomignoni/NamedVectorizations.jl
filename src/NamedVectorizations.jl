@@ -1,21 +1,50 @@
 module NamedVectorizations
 
-export NamedVectorization, NV, layout
+export NamedVectorization, NV, vector, layout
 
-TYPE_SIZE = Tuple{Vararg{Int}}
-TYPE_KEYS = NamedTuple{<:Any,<:Tuple{TYPE_SIZE,Int,Int}}
+"""
+    NV{T}(layout, vector)
 
+The named vectorization core struct. 
+
+# Fields
+- `vector::Vector`: the Vector representing the concatenation of the vectorized Array and 
+Scalar elements. 
+- `layout::NamedTuple`: it defines the position and dimension of the Arrays comprising the 
+NV with respect to the vectorized representation. Each key-value pair is 
+`(array_name => (array_size, start, stop))` where `start` and `stop` bound the vector chunk 
+containing the vectorized Array. 
+"""
 struct NV{T} <: AbstractVector{T}
-    layout::NamedTuple
+    # TODO figure out why Int instead of Any doesn't work.
+    layout::NamedTuple # {<:Any, <:Tuple{Tuple, Any, Any}} 
     vector::Vector{T}
 end
 
+"""
+    vector(nv::NV) 
+
+Alias for `getfield(nv, :vector)`.
+"""
 vector(nv::NV) = getfield(nv, :vector)
+
+"""
+    layout(nv::NV)
+
+Alias for `getfield(nv, :layout)`.
+"""
 layout(nv::NV) = getfield(nv, :layout)
 
-vectorized(nv::AbstractArray) = vec(nv)
-vectorized(nv::Number) = collect(nv)
+# Handles the vectorization of the parameters passed to the NV constructor, i.e.,
+# NamedVectorization.
+vectorized(x::AbstractArray) = vec(x)
+vectorized(x::Number) = collect(x)
 
+"""
+    NamedVectorization(; elements...)
+
+NVs constructor. 
+"""
 function NamedVectorization(; elements...)
     vector = vcat((vectorized(element) for (_, element) in elements)...)
     layout = Vector{NamedTuple}(undef, length(elements))
@@ -32,7 +61,22 @@ function NamedVectorization(; elements...)
     return NV{eltype(vector)}(merge(layout...), vector)
 end
 
-# Check if the passed NVs have pairwise disjoined fields
+# Printing
+size_format(s::Tuple{Vararg{Int}}) = "Array $(join(s, 'x'))"
+size_format(s::Tuple{Int, Int}) = "Matrix $(join(s, 'x'))"
+size_format(s::Tuple{Int}) = "$(s[1])-element Vector"
+size_format(::Tuple{}) = "Number"
+
+interval_format(start::Int, stop::Int) = start == stop ? "[$start]" : "[$start-$stop]"
+
+function Base.showarg(io::IO, nv::NV, toplevel) 
+    l = [" - $k: $(size_format(s)), $(interval_format(start, stop))" 
+        for (k, (s, start, stop)) in layout(nv) |> pairs]
+    print(io, "NV{$(eltype(nv))} with layout: \n$(join(l, '\n'))")
+end
+
+# Checks if the passed NVs have pairwise disjoined layouts: it returns `true` 
+# only if no pair of NVs has layouts with one (or more) common keys. 
 function disjoined_layouts(nvs::NV...)
     seen_symbols = Set{Symbol}()
     for nv in nvs, sym in layout(nv) |> keys
@@ -56,11 +100,21 @@ Base.:getindex(nv::NV, i::Union{Int,UnitRange{Int}}) = vector(nv)[i]
 Base.:setindex!(nv::NV, val, i::Int) = vector(nv)[i] = val
 
 # Properties
+
+# Returns the a vector chunk properly reshaped based on the size `s`.
+deliver_chunk(v::SubArray, ::Tuple{}) = v[]
+deliver_chunk(v::SubArray, ::Tuple{Int}) = v
+deliver_chunk(v::SubArray, s::Tuple{Vararg{Int}}) = reshape(v, s...)
+
 Base.:propertynames(nv::NV, private::Bool=false) =
     private ? fieldnames(NV) : layout(nv) |> keys
 Base.:getproperty(nv::NV, k::Symbol) =
     let (s, start, stop) = layout(nv)[k]
-        reshape(vector(nv)[start:stop], s...)
+        @views deliver_chunk(vector(nv)[start:stop], s)
+    end
+Base.:setproperty!(nv::NV, k::Symbol, val) = 
+    let (_, start, stop) = layout(nv)[k]
+        vector(nv)[start:stop] = vectorized(val)
     end
 
 # Broadcasting
@@ -70,6 +124,9 @@ NVBroadcastStyle(::Val{1}) = NVBroadcastStyle()
 NVBroadcastStyle(::Val{N}) where {N} = Broadcast.DefaultArrayStyle{N}()
 Broadcast.BroadcastStyle(::Type{<:NV}) = NVBroadcastStyle()
 
+# If all the NVs in the broadcasting operation have the same layout, it returns an 
+# uninitialized NV with the same layout. Otherwise, it falls back to a Vector of the 
+# correct length.
 function Base.:similar(bc::Broadcast.Broadcasted{NVBroadcastStyle}, T::Type)
     init_nv, rest = find_NV(bc.args)
     while !isempty(rest)
@@ -83,29 +140,35 @@ function Base.:similar(bc::Broadcast.Broadcasted{NVBroadcastStyle}, T::Type)
     return similar(init_nv)
 end
 
-# Recursively traverse the Broadcasted tree to find an NV
+# Recursively traverse the Broadcasted tree to find an NV.
 find_NV(args::Tuple) = find_NV(args[1], Base.tail(args))
-find_NV(leaf::NV, rest) = leaf, rest
-find_NV(leaf::Broadcast.Broadcasted, rest) = find_NV((leaf.args..., rest...))
-find_NV(::Any, rest) = find_NV(rest)
+find_NV(leaf::NV, rest::Tuple) = leaf, rest
+find_NV(leaf::Broadcast.Broadcasted, rest::Tuple) = find_NV((leaf.args..., rest...))
+find_NV(::Any, rest::Tuple) = find_NV(rest)
 find_NV(::Tuple{}) = nothing, ()
 
-# Return the matrix-vector product as an NV only if its lenght is the same as the 
-# argument NV
+# Operations
+
+# Extends the matrix-vector product for NVs. Returns the matrix-vector product as an NV only 
+# if its lenght is the same as the argument NV.
 Base.:*(M::AbstractMatrix, nv::NV) =
     let r = M * vector(nv)
         length(r) == length(nv) ? NV{eltype(r)}(layout(nv), r) : r
     end
 
-# Specialize vcat to return a NV with concatenated array and merged layouts if
-# all argments NVs have disjoined layouts.
+# Specializes vcat to return:
+#  - a NV with concatenated array and merged layouts if all argments NVs have disjoined layouts
+#  - the concatanation of the vectors comprising the NVs otherwise
 function Base.:vcat(nvs::NV...)
     r = vcat(vector.(nvs)...)
     if disjoined_layouts(nvs...)
         l = 0
         layouts = Vector{NamedTuple}(undef, length(nvs))
         for (i, nv) in enumerate(nvs)
-            layouts[i] = NamedTuple(key => (_size, start + l, stop + l) for (key, (_size, start, stop)) in layout(nv) |> pairs)
+            layouts[i] = NamedTuple(
+                key => (_size, start + l, stop + l) for
+                (key, (_size, start, stop)) in layout(nv) |> pairs
+            )
             l += length(nv)
         end
         return NV{eltype(r)}(merge(layouts...), r)
