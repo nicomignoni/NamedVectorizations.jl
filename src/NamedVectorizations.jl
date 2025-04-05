@@ -69,9 +69,12 @@ size_format(::Tuple{}) = "Number"
 
 interval_format(start::Int, stop::Int) = start == stop ? "[$start]" : "[$start-$stop]"
 
+tree_char(i::Int, depth::Int) = i == depth ? "└" : "├"
+
 function Base.showarg(io::IO, nv::NV, toplevel) 
-    l = [" - $k: $(size_format(s)), $(interval_format(start, stop))" 
-        for (k, (s, start, stop)) in layout(nv) |> pairs]
+    depth = layout(nv) |> length
+    l = ["$(tree_char(i, depth)) $k: $(size_format(s)), $(interval_format(start, stop))" 
+        for (i, (k, (s, start, stop))) in layout(nv) |> pairs |> enumerate]
     print(io, "NV{$(eltype(nv))} with layout: \n$(join(l, '\n'))")
 end
 
@@ -146,10 +149,6 @@ function Base.:similar(bc::Broadcast.Broadcasted{NVBroadcastStyle}, T::Type)
         end
     end
     return similar(init_nv)
-end
-
-function Base.:copyto!(dest::NV, bc::Broadcast.Broadcasted{Nothing})
-    return bc, dest
 end
 
 # Recursively traverse the Broadcasted tree to find an NV.
