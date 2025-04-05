@@ -38,7 +38,7 @@ layout(nv::NV) = getfield(nv, :layout)
 # Handles the vectorization of the parameters passed to the NV constructor, i.e.,
 # NamedVectorization.
 vectorized(x::AbstractArray) = vec(x)
-vectorized(x::Number) = collect(x)
+vectorized(x::Any) = collect(x)
 
 """
     NamedVectorization(; elements...)
@@ -94,6 +94,14 @@ Base.:similar(nv::NV) =
         NV{T}(layout(nv), Vector{T}(undef, length(nv)))
     end
 
+Base.:similar(nv::NV, T::Type) = NV{T}(layout(nv), Vector{T}(undef, length(nv)))
+Base.:similar(nv::NV, s::Dims) = 
+    let T = eltype(nv)
+        s == size(nv) ? NV{T}(layout(nv), Vector{T}(undef, s)) : Array{T}(undef, s)
+    end
+Base.:similar(nv::NV, T::Type, s::Dims) = 
+    s == size(nv) ? NV{T}(layout(nv), Vector{T}(undef, s)) : Array{T}(undef, s)
+
 # As Abstract Array
 Base.:size(nv::NV) = size(vector(nv))
 Base.:getindex(nv::NV, i::Union{Int,UnitRange{Int}}) = vector(nv)[i]
@@ -138,6 +146,10 @@ function Base.:similar(bc::Broadcast.Broadcasted{NVBroadcastStyle}, T::Type)
         end
     end
     return similar(init_nv)
+end
+
+function Base.:copyto!(dest::NV, bc::Broadcast.Broadcasted{Nothing})
+    return bc, dest
 end
 
 # Recursively traverse the Broadcasted tree to find an NV.
