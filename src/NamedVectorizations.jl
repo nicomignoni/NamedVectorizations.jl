@@ -68,7 +68,6 @@ size_format(s::Tuple{Int}) = "$(s[1])-element Vector"
 size_format(::Tuple{}) = "Number"
 
 interval_format(start::Int, stop::Int) = start == stop ? "[$start]" : "[$start-$stop]"
-
 tree_char(i::Int, depth::Int) = i == depth ? "└" : "├"
 
 function Base.showarg(io::IO, nv::NV, toplevel) 
@@ -148,7 +147,7 @@ function Base.:similar(bc::Broadcast.Broadcasted{NVBroadcastStyle}, T::Type)
             return Vector{T}(undef, length(init_nv))
         end
     end
-    return similar(init_nv)
+    return similar(init_nv, T)
 end
 
 # Recursively traverse the Broadcasted tree to find an NV.
