@@ -39,6 +39,11 @@ layout(nv::NV) = getfield(nv, :layout)
 vectorized(x::AbstractArray) = vec(x)
 vectorized(x::Any) = collect(x)
 
+# Handles the size of the (possibly non AbstractArray) parameters passed to the 
+# NV constructor
+sized(x::AbstractArray) = size(x)
+sized(x::Any) = length(x) == 1 ? () : error("Type $(typeof(x)) does non have `length`.")
+
 """
     NV(; elements...)
 
@@ -53,7 +58,7 @@ function NV(; elements...)
         start = stop + 1
         stop = start + length(element) - 1
 
-        layout[i] = (key => (size(element), start, stop),)
+        layout[i] = (key => (sized(element), start, stop),)
     end
 
     # kwargs cannot have the same layout, so `merge` is safe. 
