@@ -1,6 +1,6 @@
 module NamedVectorizations
 
-export NamedVectorization, NV, vector, layout
+export NV, vector, layout
 
 """
     NV{T}(layout, vector)
@@ -35,17 +35,16 @@ Alias for `getfield(nv, :layout)`.
 """
 layout(nv::NV) = getfield(nv, :layout)
 
-# Handles the vectorization of the parameters passed to the NV constructor, i.e.,
-# NamedVectorization.
+# Handles the vectorization of the parameters passed to the NV constructor.
 vectorized(x::AbstractArray) = vec(x)
 vectorized(x::Any) = collect(x)
 
 """
-    NamedVectorization(; elements...)
+    NV(; elements...)
 
 NVs constructor. 
 """
-function NamedVectorization(; elements...)
+function NV(; elements...)
     vector = vcat((vectorized(element) for (_, element) in elements)...)
     layout = Vector{NamedTuple}(undef, length(elements))
 
@@ -63,17 +62,17 @@ end
 
 # Printing
 size_format(s::Tuple{Vararg{Int}}) = "Array $(join(s, 'x'))"
-size_format(s::Tuple{Int, Int}) = "Matrix $(join(s, 'x'))"
+size_format(s::Tuple{Int,Int}) = "Matrix $(join(s, 'x'))"
 size_format(s::Tuple{Int}) = "$(s[1])-element Vector"
 size_format(::Tuple{}) = "Number"
 
 interval_format(start::Int, stop::Int) = start == stop ? "[$start]" : "[$start-$stop]"
 tree_char(i::Int, depth::Int) = i == depth ? "└" : "├"
 
-function Base.showarg(io::IO, nv::NV, toplevel) 
+function Base.showarg(io::IO, nv::NV, toplevel)
     depth = layout(nv) |> length
-    l = ["$(tree_char(i, depth)) $k: $(size_format(s)), $(interval_format(start, stop))" 
-        for (i, (k, (s, start, stop))) in layout(nv) |> pairs |> enumerate]
+    l = ["$(tree_char(i, depth)) $k: $(size_format(s)), $(interval_format(start, stop))"
+         for (i, (k, (s, start, stop))) in layout(nv) |> pairs |> enumerate]
     print(io, "NV{$(eltype(nv))} with layout: \n$(join(l, '\n'))")
 end
 
@@ -97,11 +96,11 @@ Base.:similar(nv::NV) =
     end
 
 Base.:similar(nv::NV, T::Type) = NV{T}(layout(nv), Vector{T}(undef, length(nv)))
-Base.:similar(nv::NV, s::Dims) = 
+Base.:similar(nv::NV, s::Dims) =
     let T = eltype(nv)
         s == size(nv) ? NV{T}(layout(nv), Vector{T}(undef, s)) : Array{T}(undef, s)
     end
-Base.:similar(nv::NV, T::Type, s::Dims) = 
+Base.:similar(nv::NV, T::Type, s::Dims) =
     s == size(nv) ? NV{T}(layout(nv), Vector{T}(undef, s)) : Array{T}(undef, s)
 
 # As Abstract Array
@@ -122,7 +121,7 @@ Base.:getproperty(nv::NV, k::Symbol) =
     let (s, start, stop) = layout(nv)[k]
         @views deliver_chunk(vector(nv)[start:stop], s)
     end
-Base.:setproperty!(nv::NV, k::Symbol, val) = 
+Base.:setproperty!(nv::NV, k::Symbol, val) =
     let (_, start, stop) = layout(nv)[k]
         vector(nv)[start:stop] = vectorized(val)
     end

@@ -14,7 +14,7 @@ A = [4 5; 2 1]
 b = [9; -2]
 c = 7
 
-nv = NamedVectorization(A=A, b=b, c=c)
+nv = NV(A=A, b=b, c=c)
 
 julia> nv
 7-element NV{Int64} with layout:
