@@ -127,8 +127,9 @@ Base.:getproperty(nv::NV, k::Symbol) =
         @views deliver_chunk(vector(nv)[start:stop], s)
     end
 Base.:setproperty!(nv::NV, k::Symbol, val) =
-    let (_, start, stop) = layout(nv)[k]
-        vector(nv)[start:stop] = vectorized(val)
+    let (size, start, stop) = layout(nv)[k]
+        sized(val) == size ? vector(nv)[start:stop] = vectorized(val) :
+        throw("Size of '$(k)' is $(size), the value being assigned has size $(sized(val))")
     end
 
 # Broadcasting
