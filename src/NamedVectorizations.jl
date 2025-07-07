@@ -8,12 +8,8 @@ export NV, vector, layout
 The named vectorization core struct. 
 
 # Fields
-- `vector::Vector`: the Vector representing the concatenation of the vectorized Array and 
-Scalar elements. 
-- `layout::NamedTuple`: it defines the position and dimension of the Arrays comprising the 
-NV with respect to the vectorized representation. Each key-value pair is 
-`(array_name => (array_size, start, stop))` where `start` and `stop` bound the vector chunk 
-containing the vectorized Array. 
+- `vector::Vector` - the `Vector` representing the concatenation of the vectorized `Array` and `Scalar` elements. 
+- `layout::NamedTuple` - it defines the position and dimension of the Arrays comprising the `NV` with respect to the vectorized representation. Each key-value pair is `(array_name => (array_size, start, stop))` where `start` and `stop` bound the vector chunk containing the vectorized `Array`. 
 """
 struct NV{T} <: AbstractVector{T}
     # TODO figure out why Int instead of Any doesn't work.
@@ -110,12 +106,12 @@ Base.:similar(nv::NV, T::Type, s::Dims) =
 
 # As Abstract Array
 Base.:size(nv::NV) = size(vector(nv))
-Base.:getindex(nv::NV, i::Union{Int,UnitRange{Int}}) = vector(nv)[i]
+Base.:getindex(nv::NV, i::Union{Int, UnitRange{Int}}) = vector(nv)[i]
 Base.:setindex!(nv::NV, val, i::Int) = vector(nv)[i] = val
 
 # Properties
 
-# Returns the a vector chunk properly reshaped based on the size `s`.
+# Returns the vector chunk properly reshaped based on the size `s`.
 deliver_chunk(v::SubArray, ::Tuple{}) = v[]
 deliver_chunk(v::SubArray, ::Tuple{Int}) = v
 deliver_chunk(v::SubArray, s::Tuple{Vararg{Int}}) = reshape(v, s...)
@@ -164,16 +160,23 @@ find_NV(::Tuple{}) = nothing, ()
 
 # Operations
 
-# Extends the matrix-vector product for NVs. Returns the matrix-vector product as an NV only 
-# if its lenght is the same as the argument NV.
+"""
+    Base.:*(M::AbstractMatrix, nv::NV)
+
+Extends the matrix-vector product for NVs. Returns the matrix-vector product as an NV only if its lenght is the same as the argument NV.
+"""
 Base.:*(M::AbstractMatrix, nv::NV) =
     let r = M * vector(nv)
         length(r) == length(nv) ? NV{eltype(r)}(layout(nv), r) : r
     end
 
-# Specializes vcat to return:
-#  - a NV with concatenated array and merged layouts if all argments NVs have disjoined layouts
-#  - the concatanation of the vectors comprising the NVs otherwise
+"""
+    Base.:vcat(nvs::NV...)
+
+Specializes vcat to return:
+ - a NV with concatenated array and merged layouts if all argments NVs have disjoined layouts
+ - the concatanation of the vectors comprising the NVs otherwise
+"""
 function Base.:vcat(nvs::NV...)
     r = vcat(vector.(nvs)...)
     if disjoined_layouts(nvs...)
