@@ -7,6 +7,8 @@
 
 **Vectorization in Julia, made convenient.**
 
+[![Documentation Build](https://github.com/nicomignoni/NamedVectorizations.jl/actions/workflows/documentation.yml/badge.svg)](https://github.com/nicomignoni/NamedVectorizations.jl/actions/workflows/documentation.yml)
+
 </div>
 
 Install `NamedVectorizations.jl` from the Julia REPL
