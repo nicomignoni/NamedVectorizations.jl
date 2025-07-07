@@ -11,6 +11,9 @@
 
 </div>
 
+> [!NOTE]
+> As of now, `NamedVectorizations.jl` almost overlaps with [`ComponentArrays.jl`](https://github.com/SciML/ComponentArrays.jl).
+
 Install `NamedVectorizations.jl` from the Julia REPL
 ```julia
 ] add https://github.com/nicomignoni/NamedVectorizations.jl.git
