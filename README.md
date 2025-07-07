@@ -2,7 +2,7 @@
 
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="docs/build/assets/logo.svg">
-  <img alt="envy logo" src="docs/build/assets/logo.svg" width="20%" height="20%">
+  <img alt="envy logo" src="docs/src/assets/logo.svg" width="20%" height="20%">
 </picture>
 
 **Vectorization in Julia, made convenient.**
